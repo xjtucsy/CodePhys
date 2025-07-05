@@ -4,7 +4,7 @@
 
 #### Introduction
 
-Main code of **CodePhys: Robust Video-Based Remote Physiological Measurement Through Latent Codebook Querying**
+Main code of **[CodePhys: Robust Video-Based Remote Physiological Measurement Through Latent Codebook Querying](https://ieeexplore.ieee.org/document/10878441)**
 
 <img src="README/image-20250705224102729.png" alt="image-20250705224102729" style="zoom: 50%;" />
 
