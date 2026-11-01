@@ -81,7 +81,6 @@ class CodephysTrainer:
                                         list(self.codebook_module.local_global_mixer.parameters()) , \
                                         lr=args.lr, weight_decay=args.weight_decay)
 
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=args.step_size, gamma=args.gamma)
         self.criterion_Pearson = Neg_Pearson()
         self.feature_loss = FeatureLossComputerSpatial()
 
@@ -105,11 +104,6 @@ class CodephysTrainer:
                             format='%(message)s', filemode='a')
         self.logger = logging.getLogger(f'./logs/{self.args.train_stage}_{self.args.dataset}_{self.args.num_rppg}_{self.run_date}')
         self.logger.setLevel(logging.INFO)
-
-        ## save proj_file to save_path
-        cur_file = os.getcwd()
-        cur_file_name = cur_file.split('/')[-1]
-        shutil.copytree(f'{cur_file}', f'{self.save_path}/{cur_file_name}', dirs_exist_ok=True)
 
         if start_epoch != 0:
             if not os.path.exists(f'{self.save_ckpt_path}/video_feature_extractor_{start_epoch - 1}.pth'):
@@ -179,16 +173,10 @@ class CodephysTrainer:
         self.logger.info(f'prepare train, load ckpt and block gradient, start_epoch: {start_epoch}')
 
         echo_batches = self.args.echo_batches
-        gamma = self.args.gamma
-        step_size = self.args.step_size
-        eval_step = self.args.eval_step
-        lr = self.args.lr * (gamma ** (start_epoch // step_size))
+        lr = self.args.lr
         optimizer = self.optimizer
-        scheduler = self.scheduler
 
         for epoch in range(start_epoch, self.args.epochs):
-            if epoch % step_size == step_size - 1:
-                lr *= gamma
             loss_rPPG_avg = AvgrageMeter()
             loss_peak_avg = AvgrageMeter()
             loss_kl_avg = AvgrageMeter()
@@ -224,16 +212,16 @@ class CodephysTrainer:
                     ppg_feature_signal = self.rppg_estimator(ppg_feature)          # global stream middle signal for ppg feature
                     ppg_feature_signal = (ppg_feature_signal - ppg_feature_signal.mean(dim=-1, keepdim=True)) / \
                                 torch.abs(ppg_feature_signal).max(dim=-1, keepdim=True).values  # normalize
-                    ppg_feature_signal, ppg_feature_indices, ppg_feature_latent_loss = \
+                    ppg_feature_signal, ppg_feature_logits, ppg_feature_latent_loss = \
                         self.codebook_module(ppg_feature_signal, ppg_feature)  # local-stream & code query & decoder for ppg feature
 
-                    rPPG, encoding_indices, e_latent_loss = self.codebook_module(rPPG, mask_video_feature)   # local-stream & code query & decoder
+                    rPPG, code_logits, e_latent_loss = self.codebook_module(rPPG, mask_video_feature)   # local-stream & code query & decoder
 
                     ## calculate loss
                     rPPG = cxcorr_align(rPPG, ecg)  # align
                     loss_rPPG = self.criterion_Pearson(rPPG, ecg)    # np_loss
-                    loss_code = code_loss(encoding_indices, ecg, self.codebook_module_blocked)  # code_loss
-                    loss_code_ppg_feature = code_loss(ppg_feature_indices, ecg, self.codebook_module_blocked)  # code_loss for ppg feature
+                    loss_code = code_loss(code_logits, ecg, self.codebook_module_blocked)
+                    loss_code_ppg_feature = code_loss(ppg_feature_logits, ecg, self.codebook_module_blocked)
                     loss_align = self.feature_loss(video_feature, ppg_feature.detach(), spatial_weight_map.detach())    # align_loss
 
                     clip_average_HR = (clip_average_HR - 40)    # for 'TorchLossComputer.cross_entropy_power_spectrum_loss',\
@@ -283,7 +271,10 @@ class CodephysTrainer:
                             f'code_loss = {loss_code_avg.avg:.2f}, e_latent_loss = {loss_e_latent.avg:.2f}, align_loss = {loss_align_avg.avg:.2f}, ' \
                                 f'ppg_e_latent_loss = {loss_ppg_elatent.avg:.2f}, ppg_code_loss = {loss_ppg_code_avg.avg:.2f}')                        
                     
-            scheduler.step()
+            self.logger.info(f'epoch : {epoch:0>3} complete, lr = {lr:.5f}, '
+                             f'NP_loss = {loss_rPPG_avg.avg:.4f}, fre_loss = {loss_peak_avg.avg:.4f}, '
+                             f'kl_loss = {loss_kl_avg.avg:.4f}, hr_mae = {loss_hr_mae.avg[0]:.2f}, '
+                             f'code_loss = {loss_code_avg.avg:.4f}, e_latent_loss = {loss_e_latent.avg:.4f}')
 
             # save the model
             torch.save(self.codebook_module.state_dict(), os.path.join(self.save_ckpt_path, f'codebook_{epoch}.pth'))
@@ -314,12 +305,9 @@ if __name__ == '__main__':
     ### add for codephys
     parser.add_argument('--batch_size', type=int, default=4)
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--gamma', type=float, default=0.5)
     parser.add_argument('--weight_decay', type=float, default=5e-5)
-    parser.add_argument('--step_size', type=int, default=50)
-    parser.add_argument('--eval_step', type=int, default=1)
-    parser.add_argument('--epochs', type=int, default=200)
-    parser.add_argument('--echo_batches', type=int, default=500, help='the number of mini-batches to print the loss')
+    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--echo_batches', type=int, default=50, help='the number of mini-batches to print the loss')
     parser.add_argument('--save_path', type=str, default='', help='the path to save the model [ckpt, code, visulization]')
 
     ## encoder parameters

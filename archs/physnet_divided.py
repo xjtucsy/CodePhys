@@ -183,7 +183,7 @@ class WeightMapGenerator(nn.Module):
     def __init__(self):
         super(WeightMapGenerator, self).__init__()
         # spatial weight map
-        self.spatial_attention = nn.Conv2d(2, 1, 7, stride=1, padding=3)
+        self.spatial_attention = nn.Conv2d(2, 1, 3, stride=1, padding=1)
         self.sigmoid = nn.Sigmoid()
                     
 

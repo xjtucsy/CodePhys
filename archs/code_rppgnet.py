@@ -257,7 +257,11 @@ class CodeRppgNet(nn.Module):
         # Decoder of Tokenizer, Recover the rppg.
         recoverd_rppg = self.decoder(part_token_feat) # [bs, seq_len]
 
-        return recoverd_rppg, encoding_indices, e_latent_loss
+        # Use the negative squared distances as differentiable logits for the
+        # code-query classification loss.  Hard indices are still used above
+        # for vector quantization and reconstruction.
+        code_logits = -distances
+        return recoverd_rppg, code_logits, e_latent_loss
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

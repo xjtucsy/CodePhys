@@ -49,10 +49,9 @@ class PURE(BaseDataset):
     def get_data_list(self):
         date_list = os.listdir(self.data_dir)
         date_list.sort()
-        train_list = ['06-01', '06-03', '06-04', '06-05', '06-06', '08-01', '08-02', '08-03', '08-04', '08-05', '08-06',\
-                    '05-01', '05-02', '05-03', '05-04', '05-05', '05-06', '01-01', '01-02', '01-03', '01-04', '01-05', '01-06',\
-                    '04-01', '04-02', '04-03', '04-04', '04-05', '04-06', '09-01', '09-02', '09-03', '09-04', '09-05', '09-06',\
-                    '07-01', '07-02', '07-03', '07-04', '07-05', '07-06']
+        # Subject-disjoint 7/3 protocol: subjects 01--07 for training and
+        # subjects 08--10 for testing.  (06-02 is absent from PURE.)
+        train_list = [date for date in date_list if int(date.split('-')[0]) <= 7]
         if self.train:
             date_list = [i for i in date_list if i in train_list]
         else:
